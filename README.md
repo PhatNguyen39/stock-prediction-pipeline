@@ -10,7 +10,7 @@ pinned: false
 
 # Stock Prediction Pipeline
 
-> **Live Demo:** [Stock-Prediction-Pipeline on Hugging Face Spaces](https://huggingface.co/spaces/PhatNguyen39/Stock-Prediction-Pipeline)
+> **Live Demo:** [Stock Prediction Dashboard](https://PhatNguyen39-Stock-Prediction-Pipeline.hf.space/dashboard)
 
 Production-ready ML pipeline for stock price direction prediction using XGBoost, with architecture designed for easy ensemble extension.
 
@@ -209,7 +209,7 @@ git push
 Once built, your Space will be live at:
 
 ```
-https://huggingface.co/spaces/PhatNguyen39/Stock-Prediction-Pipeline
+https://PhatNguyen39-Stock-Prediction-Pipeline.hf.space/dashboard
 ```
 
 The pre-trained model is loaded on startup. To update the model, retrain locally, commit, and push — the Space will rebuild automatically.
