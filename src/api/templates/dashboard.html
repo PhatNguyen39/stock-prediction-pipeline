@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Prediction Dashboard</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>Stock Prediction <span class="accent">Dashboard</span></h1>
+            <p class="subtitle">ML-powered stock price direction prediction</p>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- Error Banner -->
+        <div id="error-banner" class="error-banner hidden">
+            <span id="error-message"></span>
+            <button class="error-close" onclick="dismissError()">&times;</button>
+        </div>
+
+        <!-- Model Status Card -->
+        <section class="card model-status-card">
+            <h2>Model Status</h2>
+            <div class="status-row">
+                <div class="status-indicator">
+                    <span id="status-dot" class="status-dot red"></span>
+                    <span id="status-text">Not loaded</span>
+                </div>
+                <div class="status-detail">
+                    <span class="label">Last Trained:</span>
+                    <span id="last-trained">Never</span>
+                </div>
+            </div>
+            <button id="train-btn" class="btn btn-primary" onclick="startTraining()">
+                <span id="train-btn-text">Train Model</span>
+                <span id="train-spinner" class="spinner hidden"></span>
+            </button>
+            <p id="training-status-msg" class="training-msg hidden"></p>
+        </section>
+
+        <!-- Prediction Form -->
+        <section class="card">
+            <h2>Make Predictions</h2>
+            <form id="predict-form" onsubmit="submitPrediction(event)">
+                <div class="form-group">
+                    <label for="symbols-input">Stock Symbols</label>
+                    <input
+                        type="text"
+                        id="symbols-input"
+                        placeholder="e.g. AAPL, MSFT, GOOGL"
+                        required
+                    >
+                    <small>Comma-separated stock ticker symbols</small>
+                </div>
+                <button type="submit" id="predict-btn" class="btn btn-primary">
+                    <span id="predict-btn-text">Get Predictions</span>
+                    <span id="predict-spinner" class="spinner hidden"></span>
+                </button>
+            </form>
+        </section>
+
+        <!-- Results Display -->
+        <section id="results-section" class="hidden">
+            <h2>Prediction Results</h2>
+            <p class="results-meta" id="results-meta"></p>
+            <div id="results-grid" class="results-grid"></div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>Stock Prediction GB &mdash; Powered by XGBoost &amp; FastAPI</p>
+        </div>
+    </footer>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

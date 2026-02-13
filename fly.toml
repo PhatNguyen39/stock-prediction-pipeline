@@ -1,0 +1,32 @@
+app = "stock-prediction-gb"
+primary_region = "sjc"
+
+[build]
+
+[env]
+  PORT = "8080"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  size = "shared-cpu-2x"
+  memory = "1gb"
+
+[mounts]
+  source = "models_data"
+  destination = "/app/models"
+
+[[checks]]
+  name = "health"
+  grace_period = "60s"
+  interval = "30s"
+  method = "GET"
+  path = "/health"
+  port = 8080
+  timeout = "5s"
+  type = "http"
