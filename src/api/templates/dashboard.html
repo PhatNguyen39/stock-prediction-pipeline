@@ -34,11 +34,15 @@
                     <span id="last-trained">Never</span>
                 </div>
             </div>
+            {% if training_enabled %}
             <button id="train-btn" class="btn btn-primary" onclick="startTraining()">
                 <span id="train-btn-text">Train Model</span>
                 <span id="train-spinner" class="spinner hidden"></span>
             </button>
             <p id="training-status-msg" class="training-msg hidden"></p>
+            {% else %}
+            <p class="training-msg">Pre-trained model loaded. Training available when running locally.</p>
+            {% endif %}
         </section>
 
         <!-- Prediction Form -->

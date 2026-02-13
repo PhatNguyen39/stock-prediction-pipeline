@@ -21,12 +21,17 @@ COPY . .
 # Create necessary directories
 RUN mkdir -p data/raw data/processed models/saved logs mlruns
 
-# Expose port (Fly.io uses PORT env var)
-EXPOSE 8080
+# Create non-root user (required by HF Spaces)
+RUN useradd -m -u 1000 user
+RUN chown -R user:user /app
+USER user
+
+# Expose port (default 7860 for HF Spaces; Fly.io overrides via PORT env var)
+EXPOSE 7860
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:${PORT:-8080}/health || exit 1
+    CMD curl -f http://localhost:${PORT:-7860}/health || exit 1
 
-# Run the API using PORT env var (defaults to 8080)
-CMD uvicorn src.api.main:app --host 0.0.0.0 --port ${PORT:-8080}
+# Run the API using PORT env var (defaults to 7860 for HF Spaces)
+CMD uvicorn src.api.main:app --host 0.0.0.0 --port ${PORT:-7860}

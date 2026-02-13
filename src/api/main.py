@@ -9,9 +9,12 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional
 from datetime import datetime, timedelta
+import os
 import pandas as pd
 import numpy as np
 from pathlib import Path
+
+TRAINING_DISABLED = os.environ.get("DISABLE_TRAINING", "").lower() == "true"
 
 from src.utils.config import settings
 from src.utils.logger import log
@@ -160,12 +163,17 @@ async def health():
 @app.get("/dashboard")
 async def dashboard(request: Request):
     """Serve the web dashboard"""
-    return templates.TemplateResponse("dashboard.html", {"request": request})
+    return templates.TemplateResponse("dashboard.html", {
+        "request": request,
+        "training_enabled": not TRAINING_DISABLED,
+    })
 
 
 @app.get("/training/status")
 async def training_status():
     """Poll training progress"""
+    if TRAINING_DISABLED:
+        return {"status": "disabled", "message": "Training is disabled on this deployment. Train locally and push the model."}
     if state.training_in_progress:
         return {"status": "in_progress", "message": "Training is running..."}
     if state.training_error:
@@ -273,9 +281,14 @@ async def predict(request: PredictionRequest):
 async def train_model(background_tasks: BackgroundTasks):
     """
     Trigger model training
-    
+
     Training happens in the background and model is updated upon completion
     """
+    if TRAINING_DISABLED:
+        return TrainingStatus(
+            status="disabled",
+            message="Training is disabled on this deployment. Train locally and push the model."
+        )
     if state.model is not None and state.is_ready:
         # Check if recently trained
         if state.last_trained and (datetime.now() - state.last_trained).total_seconds() < 3600:

@@ -27,6 +27,9 @@ wheels/
 .env
 .env.local
 
+# Claude Code
+CLAUDE.md
+
 # IDEs
 .vscode/
 .idea/
@@ -44,6 +47,7 @@ data/processed/*
 # Models
 models/saved/*
 !models/saved/.gitkeep
+!models/saved/latest_model.pkl
 
 # Logs
 logs/*

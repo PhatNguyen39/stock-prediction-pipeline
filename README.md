@@ -1,5 +1,7 @@
 # Stock Prediction Pipeline
 
+> **Live Demo:** [Stock-Prediction-Pipeline on Hugging Face Spaces](https://huggingface.co/spaces/PhatNguyen39/Stock-Prediction-Pipeline)
+
 Production-ready ML pipeline for stock price direction prediction using XGBoost, with architecture designed for easy ensemble extension.
 
 ## 🎯 Features
@@ -11,7 +13,7 @@ Production-ready ML pipeline for stock price direction prediction using XGBoost,
 - **Ensemble-Ready**: Architecture supports adding LightGBM and CatBoost
 - **Web Dashboard**: Built-in browser UI for predictions and model management
 - **FastAPI Serving**: Production REST API with async support
-- **Fly.io Deployment**: One-command cloud deploy with auto-stop to minimize cost
+- **Hugging Face Spaces**: Free cloud deployment with Docker SDK
 - **MLflow Tracking**: Experiment tracking and model versioning
 - **Docker Support**: Containerized deployment
 - **Comprehensive Monitoring**: Logging, metrics, and health checks
@@ -168,9 +170,43 @@ docker-compose logs -f
 docker-compose down
 ```
 
-## ☁️ Deploy to Fly.io
+## ☁️ Deploy to Hugging Face Spaces (Free)
 
-Host the app in the cloud so it stays alive when your computer is off. Fly.io auto-stops the machine when idle, so cost is ~$1-5/month.
+Host the app for free on Hugging Face Spaces using the Docker SDK.
+
+### 1. Train locally and commit the model
+
+```bash
+# Train the model
+python train.py
+
+# Commit the trained model (only 35KB)
+git add models/saved/latest_model.pkl
+git commit -m "Add trained model"
+git push
+```
+
+### 2. Create a Space and sync from GitHub
+
+1. Go to [huggingface.co/new-space](https://huggingface.co/new-space) and choose **Docker** as the SDK
+2. Add your HF token as a GitHub secret (`HF_TOKEN`) in **repo Settings > Secrets > Actions**
+3. The included `.github/workflows/sync-to-hf.yml` workflow pushes every `main` commit to HF automatically — edit the file to replace `YOUR_HF_USERNAME` with your username
+4. In the Space **Settings > Variables**, add:
+   - `DISABLE_TRAINING` = `true`
+
+### 3. Access your app
+
+Once built, your Space will be live at:
+
+```
+https://huggingface.co/spaces/PhatNguyen39/Stock-Prediction-Pipeline
+```
+
+The pre-trained model is loaded on startup. To update the model, retrain locally, commit, and push — the Space will rebuild automatically.
+
+## ☁️ Alternative: Deploy to Fly.io
+
+Fly.io is a paid alternative that supports on-server training via persistent volumes.
 
 ### Prerequisites
 
@@ -202,7 +238,7 @@ fly deploy
 
 Once deployed, open `https://stock-prediction-gb.fly.dev/dashboard`.
 
-On first deploy there is no pre-trained model in the image — click **Train Model** in the dashboard to train one. The trained model is saved to the persistent volume and will survive future deploys.
+Fly.io sets `PORT=8080` via `fly.toml`, overriding the Dockerfile default of 7860. On first deploy, click **Train Model** in the dashboard — the trained model is saved to the persistent volume and survives future deploys.
 
 ### Useful Fly commands
 
