@@ -15,4 +15,4 @@ jobs:
       - name: Push to hub
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: git push https://PhatNguyen39:$HF_TOKEN@huggingface.co/spaces/PhatNguyen39/Stock-Prediction-Pipeline main
+        run: git push --force https://PhatNguyen39:$HF_TOKEN@huggingface.co/spaces/PhatNguyen39/Stock-Prediction-Pipeline main
