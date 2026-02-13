@@ -76,9 +76,8 @@ class FeatureEngineer:
         df['volume_ma_ratio'] = df['volume'] / df.groupby('symbol')['volume'].rolling(self.window).mean().reset_index(0, drop=True)
         
         # Volume-price trend
-        df['vpt'] = df.groupby('symbol').apply(
-            lambda x: (x['volume'] * x['close'].pct_change()).cumsum()
-        ).reset_index(0, drop=True)
+        price_change = df.groupby('symbol')['close'].pct_change()
+        df['vpt'] = (df['volume'] * price_change).groupby(df['symbol']).cumsum()
         
         return df
     
