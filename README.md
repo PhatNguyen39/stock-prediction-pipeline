@@ -1,3 +1,13 @@
+---
+title: Stock Prediction Pipeline
+emoji: 📈
+colorFrom: blue
+colorTo: green
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # Stock Prediction Pipeline
 
 > **Live Demo:** [Stock-Prediction-Pipeline on Hugging Face Spaces](https://huggingface.co/spaces/PhatNguyen39/Stock-Prediction-Pipeline)
