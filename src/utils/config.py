@@ -27,7 +27,7 @@ class Settings(BaseSettings):
         description="Hours between model retraining"
     )
     prediction_horizon: int = Field(
-        default=1,
+        default=5,
         description="Days ahead to predict"
     )
     
@@ -42,7 +42,7 @@ class Settings(BaseSettings):
         description="Comma-separated stock symbols"
     )
     lookback_days: int = Field(
-        default=365,
+        default=1825,
         description="Days of historical data to fetch"
     )
     feature_window: int = Field(

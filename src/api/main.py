@@ -46,6 +46,7 @@ async def lifespan(app):
             state.model = XGBoostModel()
             state.model.load(str(model_path))
             state.is_ready = True
+            state.last_trained = datetime.fromtimestamp(model_path.stat().st_mtime)
             log.info("Model loaded successfully")
         except Exception as e:
             log.error(f"Failed to load model: {e}")
@@ -202,9 +203,10 @@ async def predict(request: PredictionRequest):
     try:
         log.info(f"Prediction request for symbols: {request.symbols}")
         
-        # Fetch recent data for prediction
+        # Fetch recent data for prediction — 90 days is enough to compute
+        # all rolling features (longest window: MACD 26-day EMA + buffer)
         end_date = datetime.now()
-        start_date = end_date - timedelta(days=settings.lookback_days)
+        start_date = end_date - timedelta(days=90)
         
         df = state.data_fetcher.fetch(
             symbols=request.symbols,
@@ -243,11 +245,14 @@ async def predict(request: PredictionRequest):
             symbol_idx = latest_data.index.get_loc(idx)
             prob = float(probabilities[symbol_idx])
             pred = int(predictions[symbol_idx])
-            
-            # Determine confidence level
-            if prob > 0.7 or prob < 0.3:
+
+            # Show probability of the predicted direction, not always P(up)
+            display_prob = prob if pred == 1 else 1 - prob
+
+            # Determine confidence level based on directional probability
+            if display_prob > 0.7:
                 confidence = "high"
-            elif prob > 0.6 or prob < 0.4:
+            elif display_prob > 0.6:
                 confidence = "medium"
             else:
                 confidence = "low"
@@ -257,7 +262,7 @@ async def predict(request: PredictionRequest):
                     symbol=row['symbol'],
                     current_price=float(row['close']),
                     predicted_direction=pred,
-                    probability=prob,
+                    probability=display_prob,
                     confidence=confidence,
                     timestamp=datetime.now()
                 )

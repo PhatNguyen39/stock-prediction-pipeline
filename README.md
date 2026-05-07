@@ -1,5 +1,5 @@
 ---
-title: Stock Prediction Pipeline
+title: Tech Stock Prediction with Technical Analysis
 emoji: 📈
 colorFrom: blue
 colorTo: green
@@ -8,25 +8,36 @@ app_port: 7860
 pinned: false
 ---
 
-# Stock Prediction Pipeline
+# Tech Stock Prediction with Technical Analysis
 
 > **Live Demo:** [Stock Prediction Dashboard](https://PhatNguyen39-Stock-Prediction-Pipeline.hf.space/dashboard)
 
-Production-ready ML pipeline for stock price direction prediction using XGBoost, with architecture designed for easy ensemble extension.
+> **Disclaimer:** This project is for **demonstration and portfolio purposes only**. **This is not financial advice and should not be used for trading decisions.**
+
+Production-ready ML pipeline for tech stock price direction prediction using XGBoost, with a full experiment tracking and hyperparameter tuning workflow.
+
+## Scope
+
+The model is trained on **5 large-cap tech stocks**: AAPL, MSFT, GOOGL, AMZN, TSLA using **5 years** of historical data.
+
+Predictions are **5 trading days ahead** (weekly direction).
+
+Features include both technical indicators and external market signals (VIX, SPY, XLK sector ETF, earnings proximity). Expected test accuracy is 52–58% — this is the honest, expected result for large-cap equities due to the Efficient Market Hypothesis. See [Performance Expectations](#-performance-expectations) for more.
 
 ## 🎯 Features
 
-- **Automated Data Pipeline**: Fetches stock data from Yahoo Finance or Alpaca
-- **Feature Engineering**: 40+ technical indicators and price features
-- **Time-Series Validation**: Proper walk-forward validation to prevent data leakage
-- **XGBoost Model**: Fast, accurate gradient boosting classifier
-- **Ensemble-Ready**: Architecture supports adding LightGBM and CatBoost
-- **Web Dashboard**: Built-in browser UI for predictions and model management
-- **FastAPI Serving**: Production REST API with async support
-- **Hugging Face Spaces**: Free cloud deployment with Docker SDK
-- **MLflow Tracking**: Experiment tracking and model versioning
+- **Automated Data Pipeline**: Fetches OHLCV data from Yahoo Finance (5 years lookback)
+- **Feature Engineering**: 47+ features across technical indicators, external market signals, and time features
+- **External Market Signals**: VIX fear index, SPY/XLK returns, days to next earnings
+- **Hyperparameter Tuning**: Optuna-based search with 50+ trials, saves best params automatically
+- **Walk-Forward Validation**: 5-fold expanding-window cross-validation for honest performance estimates
+- **Time-Series Safe**: Chronological train/val/test split, no data leakage
+- **XGBoost Classifier**: Binary classification (UP/DOWN), probability output with confidence labels
+- **Web Dashboard**: Built-in browser UI — pick from the 5 supported stocks
+- **FastAPI Serving**: Production REST API, prediction uses only 90 days of data (fast)
+- **MLflow Tracking**: Full experiment history — params, metrics, feature importance per run
 - **Docker Support**: Containerized deployment
-- **Comprehensive Monitoring**: Logging, metrics, and health checks
+- **Hugging Face Spaces**: Free cloud deployment with Docker SDK
 
 ## 📁 Project Structure
 
@@ -34,34 +45,39 @@ Production-ready ML pipeline for stock price direction prediction using XGBoost,
 stock-prediction-pipeline/
 ├── src/
 │   ├── data/
-│   │   ├── fetcher.py          # Data fetching (Yahoo Finance, Alpaca)
-│   │   ├── features.py         # Feature engineering
+│   │   ├── fetcher.py          # Data fetching (Yahoo Finance)
+│   │   ├── features.py         # Feature engineering + external signals
 │   │   └── validator.py        # Data validation & cleaning
 │   ├── models/
 │   │   ├── base.py             # Abstract model interface
 │   │   ├── xgboost_model.py    # XGBoost implementation
 │   │   ├── ensemble.py         # Ensemble framework (ready for extension)
-│   │   └── trainer.py          # Training with proper time-series validation
+│   │   └── trainer.py          # Training + walk-forward validation
 │   ├── api/
 │   │   ├── main.py             # FastAPI application
 │   │   ├── templates/
 │   │   │   └── dashboard.html  # Web dashboard UI
 │   │   └── static/
-│   │       ├── css/style.css   # Dashboard styling
-│   │       └── js/app.js       # Dashboard client logic
+│   │       ├── css/style.css
+│   │       └── js/app.js
 │   └── utils/
-│       ├── config.py           # Configuration management
+│       ├── config.py           # Configuration (lookback, horizon, symbols)
 │       └── logger.py           # Logging setup
-├── data/                       # Data storage
-├── models/                     # Saved models
-├── logs/                       # Application logs
-├── mlruns/                     # MLflow tracking
-├── train.py                    # Training script
-├── Dockerfile                  # Docker configuration
-├── docker-compose.yml          # Docker Compose setup
-├── fly.toml                    # Fly.io deployment config
-├── requirements.txt            # Python dependencies
-└── README.md                   # This file
+├── models/
+│   ├── saved/
+│   │   └── latest_model.pkl    # Active model loaded by the API
+│   └── best_params.json        # Best hyperparams from last tune.py run
+├── data/                       # Data storage (gitignored)
+├── logs/                       # Application logs (gitignored)
+├── mlruns/                     # MLflow experiment history (gitignored)
+├── train.py                    # Train with best_params.json (auto-loaded)
+├── tune.py                     # Optuna hyperparameter search + retrain
+├── validate.py                 # Walk-forward cross-validation
+├── check_importance.py         # Print feature importance from saved model
+├── Dockerfile
+├── docker-compose.yml
+├── requirements.txt
+└── README.md
 ```
 
 ## 🚀 Quick Start
@@ -69,81 +85,63 @@ stock-prediction-pipeline/
 ### 1. Installation
 
 ```bash
-# Clone or download the project
+git clone <repo-url>
 cd stock-prediction-pipeline
 
-# Create virtual environment
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate  # Windows: venv\Scripts\activate
 
-# Install dependencies
 pip install -r requirements.txt
 ```
 
-### 2. Configuration
+### 2. Recommended Workflow
+
+#### Option A — Tune then train (best results)
 
 ```bash
-# Copy environment template
-cp .env.example .env
+# Step 1: Search for best hyperparameters (50 trials, ~10–20 min)
+python tune.py
 
-# Edit .env with your preferences
-# - Add Alpaca API keys (optional, Yahoo Finance works without keys)
-# - Configure symbols, training intervals, etc.
-```
+# Step 2: Validate performance across 5 market regimes
+python validate.py
 
-### 3. Train Your First Model
-
-```bash
-# Train with default settings (AAPL, MSFT, GOOGL, AMZN, TSLA)
+# Step 3: Train is not required — tune.py already saves the model.
+#         Re-run train.py only if you want to retrain on fresh data
+#         using the saved best params:
 python train.py
-
-# Or specify custom symbols
-python train.py --symbols AAPL MSFT TSLA --lookback-days 365
 ```
 
-Expected output:
-```
-[Step 1/5] Fetching stock data...
-[Step 2/5] Validating and cleaning data...
-[Step 3/5] Engineering features...
-[Step 4/5] Training XGBoost model...
-[Step 5/5] Saving model...
-
-TRAINING COMPLETED SUCCESSFULLY
-Test Accuracy:  0.5423
-Test AUC:       0.5891
-```
-
-### 4. Start API Server
+#### Option B — Train directly with defaults
 
 ```bash
-# Development mode
-uvicorn src.api.main:app --reload
+python train.py
+```
 
-# Production mode
+`train.py` automatically loads `models/best_params.json` if it exists.
+If the file is missing or empty, it falls back to XGBoost defaults.
+
+### 3. Start the API
+
+```bash
 uvicorn src.api.main:app --host 0.0.0.0 --port 8000
 ```
 
-### 5. Open the Web Dashboard
+### 4. Open the Dashboard
 
-The app includes a built-in dashboard — no separate frontend setup needed.
-
-```bash
-# Start the server, then open in your browser:
+```
 http://localhost:8000/dashboard
 ```
 
 From the dashboard you can:
-- **See model status** — green/red indicator shows whether a model is loaded
-- **Train the model** — click "Train Model" and watch the spinner poll until complete
-- **Get predictions** — enter comma-separated symbols (e.g. `AAPL, MSFT, GOOGL`), hit submit, and see results as styled cards with direction arrows, probability %, and confidence badges
+- **See model status** — indicator shows whether a model is loaded
+- **Train the model** — click "Train Model" and poll until complete
+- **Get predictions** — toggle stocks, hit submit, see direction + probability + confidence badge
 
-All the JSON API endpoints (`/predict`, `/train`, `/health`, etc.) continue to work alongside the dashboard.
+Only `medium` and `high` confidence predictions (probability > 60%) are worth acting on.
 
-### 6. Make Predictions
+### 5. Make Predictions via API
 
 ```bash
-# Test the API
 curl -X POST "http://localhost:8000/predict" \
   -H "Content-Type: application/json" \
   -d '{"symbols": ["AAPL", "MSFT"]}'
@@ -159,305 +157,219 @@ Response:
       "predicted_direction": 1,
       "probability": 0.6234,
       "confidence": "medium",
-      "timestamp": "2025-02-10T10:30:00"
+      "timestamp": "2026-05-06T10:30:00"
     }
   ],
   "model_name": "xgboost",
-  "model_last_trained": "2025-02-10T09:00:00"
+  "model_last_trained": "2026-05-06T09:00:00"
 }
+```
+
+**Confidence labels:**
+- `high` → probability > 70%
+- `medium` → probability 60–70%
+- `low` → probability ≤ 60% — ignore these signals
+
+## 🔧 Scripts
+
+### `tune.py` — Hyperparameter search
+
+```bash
+python tune.py                            # 50 trials, optimise val_precision
+python tune.py --trials 100               # more trials = better search
+python tune.py --metric val_auc           # optimise AUC instead
+python tune.py --symbols AAPL MSFT        # specific symbols
+```
+
+Runs Optuna search, saves best params to `models/best_params.json`, retrains the final model, saves to `models/saved/latest_model.pkl`.
+
+### `train.py` — Training
+
+```bash
+python train.py                           # auto-loads best_params.json
+python train.py --symbols AAPL MSFT TSLA  # specific symbols
+python train.py --params-file other.json  # explicit params file
+```
+
+### `validate.py` — Walk-forward validation
+
+```bash
+python validate.py           # 5 folds with best_params.json
+python validate.py --folds 8 # more folds
+python validate.py --no-params  # XGBoost defaults
+```
+
+Reports per-fold and average accuracy/precision/AUC with std across market regimes. Does **not** save a model — purely diagnostic.
+
+### `check_importance.py` — Feature importance
+
+```bash
+python check_importance.py
+```
+
+Prints all features ranked by XGBoost importance from the current `latest_model.pkl`.
+
+## 🧠 Understanding the Pipeline
+
+### Data Flow
+
+```
+Yahoo Finance (5 years OHLCV)
+        ↓
+Validation & Cleaning
+        ↓
+Feature Engineering (47+ features)
+        ↓
+Walk-forward / Train-Val-Test Split
+        ↓
+XGBoost Binary Classifier
+        ↓
+REST API → Dashboard
+```
+
+### Features (47+)
+
+**Price** — 1d/5d/10d/20d returns, momentum, HL spread, close position in range
+
+**Volume** — volume change, volume/MA ratio, Volume-Price Trend (VPT)
+
+**Technical Indicators** — SMA(20), EMA(20), MACD, RSI(14), Bollinger Bands (width + position), Stochastic K/D, ATR(14)
+
+**Lag Features** — close, volume, return lagged at [1, 2, 3, 5, 10] days
+
+**Time** — day of week (+ cyclical encoding), day of month, month, quarter
+
+**External Market Signals** (fetched live during training and prediction):
+- `vix` — CBOE VIX fear index (market-wide risk regime)
+- `spy_return_1d`, `spy_return_5d` — broad market momentum
+- `xlk_return_1d`, `xlk_return_5d` — tech sector momentum
+- `days_to_earnings` — days until next earnings announcement (0–90, capped)
+
+### Prediction at Inference Time
+
+Training uses 5 years of data to learn patterns. Predicting uses only the **last 90 days** to compute feature values for the most recent row — fast and efficient.
+
+### Preventing Data Leakage
+
+- Chronological split only — no shuffling
+- A gap equal to the prediction horizon (5 days) between train end and test start in walk-forward folds
+- External features fetched using only past data at each point in time
+
+## 📊 API Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/health` | Health check |
+| GET | `/dashboard` | Web UI |
+| POST | `/predict` | Get predictions for symbols |
+| POST | `/train` | Trigger model training |
+| GET | `/training/status` | Poll training progress |
+| GET | `/model/info` | Current model metadata |
+
+## 📈 MLflow Tracking
+
+Every `train.py` and `tune.py` run is automatically logged.
+
+```bash
+mlflow ui --port 5001
+# Open http://localhost:5001
+```
+
+> **macOS note:** Port 5000 is used by AirPlay Receiver. Use `--port 5001`.
+
+Each run stores:
+- **Params**: model type, feature count, data sizes
+- **Metrics**: accuracy, precision, AUC for train / val / test splits
+- **Artifacts**: `feature_importance.csv`, trained model pickle
+
+## 📉 Performance Expectations
+
+| Metric | Typical range |
+|---|---|
+| Test Accuracy | 52–57% |
+| Test Precision | 52–58% |
+| Test AUC | 0.51–0.55 |
+| Training time | 3–10 min (with tuning) |
+| Prediction latency | < 200ms |
+
+**Why not higher?** Large-cap tech stocks (AAPL, MSFT, GOOGL, AMZN, TSLA) are the most heavily analysed equities in the world. Any signal from standard technical indicators is arbitraged away almost instantly by institutional quant funds. An honest 52–57% test precision with no overfitting is the correct, expected result — not a failure.
+
+A model claiming 80%+ accuracy on this problem almost certainly has data leakage.
+
+**What would improve it:**
+- Alternative data: news sentiment, options flow, earnings surprises
+- Less-efficient markets: mid/small-cap stocks
+- Intraday data with microstructure features
+
+## 🔧 Configuration
+
+Key settings in `src/utils/config.py` (can be overridden via `.env`):
+
+```bash
+SYMBOLS=AAPL,MSFT,GOOGL,AMZN,TSLA   # stocks to train on
+LOOKBACK_DAYS=1825                    # 5 years of training data
+PREDICTION_HORIZON=5                  # predict 5 trading days ahead
+FEATURE_WINDOW=20                     # rolling window for indicators
 ```
 
 ## 🐳 Docker Deployment
 
 ```bash
-# Build and run with Docker Compose
 docker-compose up -d
-
-# Check logs
 docker-compose logs -f
-
-# Stop
 docker-compose down
 ```
 
 ## ☁️ Deploy to Hugging Face Spaces (Free)
 
-Host the app for free on Hugging Face Spaces using the Docker SDK.
-
 ### 1. Train locally and commit the model
 
 ```bash
-# Train the model
 python train.py
-
-# Commit the trained model (only 35KB)
-git add models/saved/latest_model.pkl
-git commit -m "Add trained model"
+git add models/saved/latest_model.pkl models/best_params.json
+git commit -m "Update trained model"
 git push
 ```
 
 ### 2. Create a Space and sync from GitHub
 
-1. Go to [huggingface.co/new-space](https://huggingface.co/new-space) and choose **Docker** as the SDK
-2. Add your HF token as a GitHub secret (`HF_TOKEN`) in **repo Settings > Secrets > Actions**
-3. The included `.github/workflows/sync-to-hf.yml` workflow pushes every `main` commit to HF automatically — edit the file to replace `YOUR_HF_USERNAME` with your username
-4. In the Space **Settings > Variables**, add:
-   - `DISABLE_TRAINING` = `true`
+1. Go to [huggingface.co/new-space](https://huggingface.co/new-space), choose **Docker** SDK
+2. Add your HF token as a GitHub secret (`HF_TOKEN`) in **repo Settings → Secrets → Actions**
+3. Edit `.github/workflows/sync-to-hf.yml` — replace `YOUR_HF_USERNAME` with your username
+4. In the Space **Settings → Variables**, add `DISABLE_TRAINING=true`
 
-### 3. Access your app
-
-Once built, your Space will be live at:
-
-```
-https://PhatNguyen39-Stock-Prediction-Pipeline.hf.space/dashboard
-```
-
-The pre-trained model is loaded on startup. To update the model, retrain locally, commit, and push — the Space will rebuild automatically.
-
-## ☁️ Alternative: Deploy to Fly.io
-
-Fly.io is a paid alternative that supports on-server training via persistent volumes.
-
-### Prerequisites
-
-Install the Fly CLI: https://fly.io/docs/flyctl/install/
-
-```bash
-fly auth login
-```
-
-### First-time setup
-
-```bash
-# Create the app
-fly apps create stock-prediction-gb
-
-# Create a persistent volume for saved models (1 GB)
-fly volumes create models_data --region sjc --size 1
-
-# Set API keys if you use Alpaca (optional — Yahoo Finance works without keys)
-fly secrets set ALPACA_API_KEY=your_key ALPACA_SECRET_KEY=your_secret
-```
-
-### Deploy
-
-```bash
-# Deploy (or use: make deploy)
-fly deploy
-```
-
-Once deployed, open `https://stock-prediction-gb.fly.dev/dashboard`.
-
-Fly.io sets `PORT=8080` via `fly.toml`, overriding the Dockerfile default of 7860. On first deploy, click **Train Model** in the dashboard — the trained model is saved to the persistent volume and survives future deploys.
-
-### Useful Fly commands
-
-```bash
-fly status              # Check app status
-fly logs                # Stream logs
-fly ssh console         # SSH into the running machine
-fly scale memory 2048   # Increase memory if training is slow
-```
-
-## 📊 API Endpoints
-
-### Health Check
-```bash
-GET /health
-GET /
-```
-
-### Web Dashboard
-```bash
-GET /dashboard
-```
-
-### Get Predictions
-```bash
-POST /predict
-Body: {"symbols": ["AAPL", "MSFT"]}
-```
-
-### Train Model
-```bash
-POST /train
-```
-
-### Training Status (poll during training)
-```bash
-GET /training/status
-```
-
-### Model Info
-```bash
-GET /model/info
-```
-
-## 🎓 Understanding the Pipeline
-
-### Data Flow
-
-1. **Data Fetching**: Pulls OHLCV data from Yahoo Finance/Alpaca
-2. **Validation**: Checks for missing values, duplicates, anomalies
-3. **Feature Engineering**:
-   - Price features (returns, momentum, spreads)
-   - Volume features (changes, ratios)
-   - Technical indicators (SMA, EMA, MACD, RSI, Bollinger Bands, Stochastic, ATR)
-   - Lag features (historical values)
-   - Time features (day of week, month, cyclical encoding)
-4. **Time-Series Split**: 70% train, 15% validation, 15% test (chronological)
-5. **Training**: XGBoost with early stopping
-6. **Evaluation**: Comprehensive metrics (accuracy, AUC, precision, recall, F1)
-
-### Key Features
-
-**Prevents Data Leakage**:
-- Time-series aware split (no future data in training)
-- Features use only past information
-- Proper walk-forward validation
-
-**Production Ready**:
-- Comprehensive logging
-- Error handling
-- Model versioning
-- Health checks
-- Monitoring metrics
-
-## 🔧 Customization
-
-### Change Stock Symbols
-
-Edit `.env`:
-```bash
-SYMBOLS=AAPL,MSFT,GOOGL,AMZN,TSLA,NVDA,META
-```
-
-### Adjust Training Parameters
-
-In `train.py` or when calling the API:
-```python
-# More training data
-LOOKBACK_DAYS=730  # 2 years
-
-# Different prediction horizon
-PREDICTION_HORIZON=5  # Predict 5 days ahead
-
-# Different feature window
-FEATURE_WINDOW=30  # 30-day indicators
-```
-
-### Add Custom Features
-
-Edit `src/data/features.py`:
-```python
-def add_custom_features(self, df: pd.DataFrame) -> pd.DataFrame:
-    """Add your custom features here"""
-    df['my_feature'] = ...  # Your logic
-    return df
-```
-
-## 🎯 Adding Ensemble (Future Extension)
-
-The architecture is ready for ensemble models:
-
-```python
-from src.models.xgboost_model import XGBoostModel
-from src.models.lightgbm_model import LightGBMModel  # To be created
-from src.models.catboost_model import CatBoostModel  # To be created
-from src.models.ensemble import EnsembleModel
-
-# Create individual models
-xgb = XGBoostModel()
-lgbm = LightGBMModel()
-cat = CatBoostModel()
-
-# Create ensemble
-ensemble = EnsembleModel(
-    models=[xgb, lgbm, cat],
-    weights=[0.4, 0.3, 0.3]  # Or None for equal weights
-)
-
-# Train ensemble (trains all models)
-trainer.train_model(ensemble, df_features)
-```
-
-To add LightGBM:
-1. Create `src/models/lightgbm_model.py` (similar structure to `xgboost_model.py`)
-2. Implement the `BaseModel` interface
-3. Use in ensemble as shown above
-
-## 📈 MLflow Tracking
-
-View experiment tracking:
-```bash
-mlflow ui --backend-store-uri ./mlruns
-```
-
-Open http://localhost:5000 to see:
-- Training metrics over time
-- Model parameters
-- Feature importance
-- Model comparisons
-
-## 🧪 Testing
-
-```bash
-# Install test dependencies
-pip install pytest pytest-asyncio httpx
-
-# Run tests
-pytest tests/
-```
-
-## 📝 Performance Expectations
-
-**Baseline Performance** (5 tech stocks, 1-year data):
-- Accuracy: 52-58% (better than random 50%)
-- AUC: 0.55-0.65
-- Training time: 1-3 minutes
-- Prediction latency: <100ms
-
-**Note**: Stock prediction is inherently difficult. Focus on:
-1. **No data leakage**: Proper validation prevents overfitting
-2. **Risk management**: Use probabilities for position sizing
-3. **Ensemble benefit**: Typically +2-5% accuracy improvement
-4. **Production quality**: Clean code, monitoring, error handling
-
+The pre-trained model is loaded on startup. To update, retrain locally, commit, and push.
 
 ## 🔍 Common Issues
 
-**Issue**: Model accuracy around 50%
-- **Solution**: Stock prediction is hard! Focus on proper validation and risk management
+**`403` on `http://localhost:5000` (MLflow UI)**
+→ macOS AirPlay uses port 5000. Run `mlflow ui --port 5001` instead.
 
-**Issue**: Training fails with memory error
-- **Solution**: Reduce `LOOKBACK_DAYS` or `SYMBOLS` in `.env`
+**All predictions show `low` confidence**
+→ Expected when market has no clear directional signal. Only act on `medium`/`high` confidence predictions.
 
-**Issue**: API returns 503
-- **Solution**: Train a model first using `python train.py` or `POST /train`
+**Accuracy stuck at ~50% / Accuracy equals Precision**
+→ Model may be predicting all UP. Re-tune with `python tune.py --metric val_precision`.
 
-**Issue**: Yahoo Finance data fetch fails
-- **Solution**: Some symbols might be delisted, check symbol validity
+**Training fails with memory error**
+→ Reduce `LOOKBACK_DAYS` in `.env` or use fewer symbols.
+
+**API returns 503**
+→ No model loaded. Run `python train.py` first or call `POST /train`.
 
 ## 📚 Resources
 
 - [XGBoost Documentation](https://xgboost.readthedocs.io/)
 - [FastAPI Documentation](https://fastapi.tiangolo.com/)
 - [MLflow Documentation](https://mlflow.org/docs/latest/index.html)
-- [Time Series Validation](https://scikit-learn.org/stable/modules/cross_validation.html#time-series-split)
-
-## 🤝 Contributing
-
-This is a portfolio project. Feel free to:
-- Add more features
-- Implement ensemble models
-- Add more data sources
-- Improve documentation
+- [Optuna Documentation](https://optuna.readthedocs.io/)
+- [Time Series Cross-Validation](https://scikit-learn.org/stable/modules/cross_validation.html#time-series-split)
 
 ## 📄 License
 
-MIT License - free to use for portfolio and learning purposes.
+MIT License — free to use for portfolio and learning purposes.
 
 ---
 
 **Built for ML Engineer Portfolio**
-Demonstrates production-grade ML pipeline development with focus on proper validation, clean architecture, and extensibility.
+Demonstrates a production-grade ML pipeline: data ingestion, feature engineering with external signals, hyperparameter tuning, honest time-series evaluation, experiment tracking, and REST API serving.

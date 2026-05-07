@@ -3,12 +3,13 @@ Model training with proper time-series validation
 """
 import pandas as pd
 import numpy as np
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List
 from datetime import datetime, timedelta
 from sklearn.metrics import (
     accuracy_score, precision_score, recall_score, f1_score,
     roc_auc_score, confusion_matrix, classification_report
 )
+from sklearn.model_selection import TimeSeriesSplit
 import mlflow
 import mlflow.sklearn
 from src.models.base import BaseModel
@@ -252,3 +253,103 @@ class ModelTrainer:
         log.info("=" * 60)
         
         return all_metrics
+
+    def walk_forward_validate(
+        self,
+        df: pd.DataFrame,
+        model_params: Optional[Dict[str, Any]] = None,
+        n_splits: int = 5,
+        gap: int = None,
+        target_col: str = 'target_direction',
+        early_stopping_rounds: int = 30,
+    ) -> Tuple[List[Dict], Dict[str, float]]:
+        """
+        Expanding-window walk-forward cross-validation.
+
+        Each fold grows the training window and tests on the next unseen period.
+        A gap equal to prediction_horizon is inserted between train and test to
+        avoid target-leakage from lookahead labels at the boundary.
+
+        Args:
+            df: Full feature-engineered DataFrame with date column.
+            model_params: XGBoost params dict (uses model defaults if None).
+            n_splits: Number of folds (default 5).
+            gap: Rows to skip between train end and test start (defaults to
+                 settings.prediction_horizon).
+            target_col: Name of the target column.
+            early_stopping_rounds: Early stopping patience per fold.
+
+        Returns:
+            (fold_metrics, avg_metrics) — per-fold dicts and cross-fold averages.
+        """
+        from src.models.xgboost_model import XGBoostModel
+
+        if gap is None:
+            gap = settings.prediction_horizon
+
+        df = df.sort_values('date').reset_index(drop=True)
+        X, y = self.prepare_features_target(df, target_col)
+        dates = df['date']
+
+        tscv = TimeSeriesSplit(n_splits=n_splits, gap=gap)
+
+        fold_metrics: List[Dict] = []
+
+        log.info(f"Walk-forward validation: {n_splits} folds, gap={gap} rows")
+        log.info(f"{'Fold':<6} {'Train':>8} {'Test':>8} {'Accuracy':>10} {'Precision':>10} {'AUC':>8}")
+        log.info("-" * 55)
+
+        for fold, (train_idx, test_idx) in enumerate(tscv.split(X), 1):
+            # Internal val set = last 15% of training for early stopping
+            val_split = int(len(train_idx) * 0.85)
+            internal_train_idx = train_idx[:val_split]
+            internal_val_idx   = train_idx[val_split:]
+
+            X_train = X.iloc[internal_train_idx]
+            y_train = y.iloc[internal_train_idx]
+            X_val   = X.iloc[internal_val_idx]
+            y_val   = y.iloc[internal_val_idx]
+            X_test  = X.iloc[test_idx]
+            y_test  = y.iloc[test_idx]
+
+            train_period = f"{dates.iloc[train_idx[0]].date()} → {dates.iloc[train_idx[-1]].date()}"
+            test_period  = f"{dates.iloc[test_idx[0]].date()} → {dates.iloc[test_idx[-1]].date()}"
+
+            model = XGBoostModel(params=model_params)
+            model.train(X_train, y_train, X_val, y_val,
+                        early_stopping_rounds=early_stopping_rounds, verbose=False)
+
+            metrics = self.calculate_metrics(
+                y_test, model.predict(X_test),
+                model.predict_proba(X_test)[:, 1], prefix=""
+            )
+            metrics['fold']         = fold
+            metrics['train_size']   = len(train_idx)
+            metrics['test_size']    = len(test_idx)
+            metrics['train_period'] = train_period
+            metrics['test_period']  = test_period
+
+            fold_metrics.append(metrics)
+
+            log.info(
+                f"{fold:<6} {len(train_idx):>8} {len(test_idx):>8}"
+                f" {metrics['accuracy']:>10.4f} {metrics['precision']:>10.4f}"
+                f" {metrics['auc']:>8.4f}"
+            )
+
+        # Average and std across folds
+        avg_metrics: Dict[str, float] = {}
+        log.info("-" * 55)
+        log.info(f"{'Metric':<20} {'Mean':>8} {'Std':>8}")
+        log.info("-" * 40)
+        for key in ['accuracy', 'precision', 'auc']:
+            values = [m[key] for m in fold_metrics]
+            avg_metrics[f'avg_{key}'] = float(np.mean(values))
+            avg_metrics[f'std_{key}'] = float(np.std(values))
+            log.info(
+                f"{key.capitalize():<20}"
+                f" {avg_metrics[f'avg_{key}']:>8.4f}"
+                f" ± {avg_metrics[f'std_{key}']:>6.4f}"
+            )
+
+        return fold_metrics, avg_metrics

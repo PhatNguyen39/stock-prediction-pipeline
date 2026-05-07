@@ -3,6 +3,7 @@ Feature engineering for stock prediction
 """
 import pandas as pd
 import numpy as np
+from bisect import bisect_right
 from typing import List
 from ta.trend import SMAIndicator, EMAIndicator, MACD
 from ta.momentum import RSIIndicator, StochasticOscillator
@@ -167,6 +168,94 @@ class FeatureEngineer:
         
         return df
     
+    def add_external_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Fetch and merge external market features:
+          - VIX: market fear/volatility regime
+          - SPY 1d/5d return: broad market momentum
+          - XLK 1d/5d return: tech sector momentum
+          - days_to_earnings: proximity to next earnings announcement
+        """
+        import yfinance as yf
+
+        def _naive_date(s: pd.Series) -> pd.Series:
+            """Strip timezone and normalize to midnight — works on any datetime Series."""
+            s = pd.to_datetime(s)
+            if s.dt.tz is not None:
+                s = s.dt.tz_convert('UTC').dt.tz_localize(None)
+            return s.dt.normalize()
+
+        df = df.copy()
+        df['date'] = _naive_date(df['date'])
+
+        start = df['date'].min() - pd.Timedelta(days=30)  # buffer for pct_change warmup
+        end   = df['date'].max() + pd.Timedelta(days=1)
+
+        # --- VIX, SPY, XLK ---
+        raw = {}
+        for ticker in ['^VIX', 'SPY', 'XLK']:
+            try:
+                data = yf.download(ticker, start=start, end=end,
+                                   progress=False, auto_adjust=True)
+                close = data['Close']
+                if isinstance(close, pd.DataFrame):
+                    close = close.iloc[:, 0]
+                raw[ticker] = close.rename(ticker)
+                log.info(f"Fetched {ticker}: {len(data)} rows")
+            except Exception as e:
+                log.warning(f"Could not fetch {ticker}: {e}")
+
+        if raw:
+            ext = pd.concat(raw.values(), axis=1)
+            ext.index.name = 'date'
+            ext = ext.reset_index()
+            ext['date'] = _naive_date(ext['date'])
+
+            if '^VIX' in ext.columns:
+                ext['vix'] = ext['^VIX']
+            if 'SPY' in ext.columns:
+                ext['spy_return_1d'] = ext['SPY'].pct_change(1)
+                ext['spy_return_5d'] = ext['SPY'].pct_change(5)
+            if 'XLK' in ext.columns:
+                ext['xlk_return_1d'] = ext['XLK'].pct_change(1)
+                ext['xlk_return_5d'] = ext['XLK'].pct_change(5)
+
+            keep = ['date', 'vix', 'spy_return_1d', 'spy_return_5d',
+                    'xlk_return_1d', 'xlk_return_5d']
+            keep = [c for c in keep if c in ext.columns]
+            df = df.merge(ext[keep], on='date', how='left')
+            log.info(f"Merged market features: {[c for c in keep if c != 'date']}")
+
+        # --- Days to next earnings ---
+        earnings_lookup = {}
+        for symbol in df['symbol'].unique():
+            try:
+                ed = yf.Ticker(symbol).get_earnings_dates(limit=40)
+                if ed is not None and not ed.empty:
+                    idx = pd.to_datetime(ed.index)
+                    if idx.tz is not None:
+                        idx = idx.tz_convert('UTC').tz_localize(None)
+                    dates = sorted(idx.normalize().tolist())
+                    earnings_lookup[symbol] = dates
+                    log.info(f"Fetched {len(dates)} earnings dates for {symbol}")
+            except Exception as e:
+                log.warning(f"Could not fetch earnings dates for {symbol}: {e}")
+
+        if earnings_lookup:
+            def _days_to_next(row):
+                dates = earnings_lookup.get(row['symbol'], [])
+                if not dates:
+                    return 90
+                idx = bisect_right(dates, row['date'])
+                if idx >= len(dates):
+                    return 90
+                return min((dates[idx] - row['date']).days, 90)
+
+            df['days_to_earnings'] = df.apply(_days_to_next, axis=1)
+            log.info("Added days_to_earnings feature")
+
+        return df
+
     def engineer_features(
         self,
         df: pd.DataFrame,
@@ -199,6 +288,7 @@ class FeatureEngineer:
         df = self.add_technical_indicators(df)
         df = self.add_lag_features(df)
         df = self.add_time_features(df)
+        df = self.add_external_features(df)
         
         # Drop rows with NaN (from rolling windows and lags)
         initial_rows = len(df)

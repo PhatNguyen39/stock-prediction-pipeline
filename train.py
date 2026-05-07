@@ -2,8 +2,9 @@
 Training script - Run complete training pipeline
 """
 import argparse
+import json
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
 
 from src.utils.logger import log
@@ -18,7 +19,8 @@ from src.models.trainer import ModelTrainer
 def main(
     symbols: list = None,
     lookback_days: int = None,
-    save_data: bool = True
+    save_data: bool = True,
+    params_file: str = None,
 ):
     """
     Run the complete training pipeline
@@ -43,8 +45,8 @@ def main(
     
     # Step 1: Fetch data
     log.info("\n[Step 1/5] Fetching stock data...")
-    fetcher = DataFetcher(use_alpaca=False)  # Use Yahoo Finance
-    df = fetcher.fetch(symbols=symbols)
+    fetcher = DataFetcher(use_alpaca=False)
+    df = fetcher.fetch(symbols=symbols, start_date=datetime.now() - timedelta(days=lookback_days))
     
     log.info(f"Fetched {len(df)} rows for {len(symbols)} symbols")
     
@@ -82,7 +84,19 @@ def main(
     
     # Step 4: Train model
     log.info("\n[Step 4/5] Training XGBoost model...")
-    model = XGBoostModel(model_name="xgboost")
+    custom_params = None
+    best_params_path = Path(params_file) if params_file else Path("models/best_params.json")
+    if best_params_path.exists():
+        with open(best_params_path) as f:
+            content = f.read().strip()
+        if content:
+            custom_params = json.loads(content)
+            log.info(f"Loaded params from {best_params_path}: {custom_params}")
+        else:
+            log.info(f"{best_params_path} is empty — using XGBoost defaults")
+    else:
+        log.info("No best_params.json found — using XGBoost defaults")
+    model = XGBoostModel(model_name="xgboost", params=custom_params)
     trainer = ModelTrainer(mlflow_tracking=True)
     
     metrics = trainer.train_model(
@@ -150,11 +164,18 @@ if __name__ == "__main__":
         action="store_true",
         help="Don't save processed data"
     )
-    
+    parser.add_argument(
+        "--params-file",
+        type=str,
+        default=None,
+        help="Path to JSON file with XGBoost params (e.g. models/best_params.json)"
+    )
+
     args = parser.parse_args()
-    
+
     main(
         symbols=args.symbols,
         lookback_days=args.lookback_days,
-        save_data=not args.no_save_data
+        save_data=not args.no_save_data,
+        params_file=args.params_file,
     )
