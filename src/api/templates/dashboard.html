@@ -9,12 +9,22 @@
 <body>
     <header>
         <div class="container">
-            <h1>Stock Prediction <span class="accent">Dashboard</span></h1>
-            <p class="subtitle">ML-powered stock price direction prediction</p>
+            <h1>Tech Stock Prediction <span class="accent">Dashboard</span></h1>
+            <p class="subtitle">XGBoost model trained on technical indicators for 5 large-cap tech stocks</p>
         </div>
     </header>
 
     <main class="container">
+        <!-- Disclaimer Banner -->
+        <div class="disclaimer-banner">
+            <span class="disclaimer-icon">&#9888;</span>
+            <span>
+                <strong>Demo only &mdash; not financial advice.</strong>
+                Predictions are based solely on technical analysis (price &amp; volume indicators).
+                Past patterns do not guarantee future results. Do not use this to make trading decisions.
+            </span>
+        </div>
+
         <!-- Error Banner -->
         <div id="error-banner" class="error-banner hidden">
             <span id="error-message"></span>
@@ -50,14 +60,16 @@
             <h2>Make Predictions</h2>
             <form id="predict-form" onsubmit="submitPrediction(event)">
                 <div class="form-group">
-                    <label for="symbols-input">Stock Symbols</label>
-                    <input
-                        type="text"
-                        id="symbols-input"
-                        placeholder="e.g. AAPL, MSFT, GOOGL"
-                        required
-                    >
-                    <small>Comma-separated stock ticker symbols</small>
+                    <label>Select Stocks</label>
+                    <p class="form-note">Model supports these 5 tech stocks only</p>
+                    <div class="stock-chips" id="stock-chips">
+                        <button type="button" class="stock-chip" data-symbol="AAPL">AAPL</button>
+                        <button type="button" class="stock-chip" data-symbol="MSFT">MSFT</button>
+                        <button type="button" class="stock-chip" data-symbol="GOOGL">GOOGL</button>
+                        <button type="button" class="stock-chip" data-symbol="AMZN">AMZN</button>
+                        <button type="button" class="stock-chip" data-symbol="TSLA">TSLA</button>
+                    </div>
+                    <p id="chips-error" class="chips-error hidden">Please select at least one stock.</p>
                 </div>
                 <button type="submit" id="predict-btn" class="btn btn-primary">
                     <span id="predict-btn-text">Get Predictions</span>
@@ -76,7 +88,7 @@
 
     <footer>
         <div class="container">
-            <p>Stock Prediction GB &mdash; Powered by XGBoost &amp; FastAPI</p>
+            <p>Stock Prediction GB &mdash; Powered by XGBoost &amp; FastAPI &mdash; For demo purposes only, not financial advice</p>
         </div>
     </footer>
 

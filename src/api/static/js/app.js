@@ -4,7 +4,23 @@ let trainingPollInterval = null;
 // ===== Init =====
 document.addEventListener('DOMContentLoaded', () => {
     refreshStatus();
+    initStockChips();
 });
+
+// ===== Stock Chip Selection =====
+function initStockChips() {
+    document.querySelectorAll('.stock-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            chip.classList.toggle('selected');
+            document.getElementById('chips-error').classList.add('hidden');
+        });
+    });
+}
+
+function getSelectedSymbols() {
+    return Array.from(document.querySelectorAll('.stock-chip.selected'))
+        .map(c => c.dataset.symbol);
+}
 
 // ===== Error Handling =====
 function showError(msg) {
@@ -115,11 +131,11 @@ async function pollTrainingStatus() {
 async function submitPrediction(event) {
     event.preventDefault();
 
-    const input = document.getElementById('symbols-input').value.trim();
-    if (!input) return;
-
-    const symbols = input.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
-    if (symbols.length === 0) return;
+    const symbols = getSelectedSymbols();
+    if (symbols.length === 0) {
+        document.getElementById('chips-error').classList.remove('hidden');
+        return;
+    }
 
     const btn = document.getElementById('predict-btn');
     const btnText = document.getElementById('predict-btn-text');
