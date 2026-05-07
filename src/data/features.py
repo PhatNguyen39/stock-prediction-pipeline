@@ -241,18 +241,22 @@ class FeatureEngineer:
             except Exception as e:
                 log.warning(f"Could not fetch earnings dates for {symbol}: {e}")
 
-        if earnings_lookup:
-            def _days_to_next(row):
-                dates = earnings_lookup.get(row['symbol'], [])
-                if not dates:
-                    return 90
-                idx = bisect_right(dates, row['date'])
-                if idx >= len(dates):
-                    return 90
-                return min((dates[idx] - row['date']).days, 90)
+        # Always create the column — default 90 (neutral/unknown)
+        # Overwritten with real values if earnings data was fetched successfully
+        def _days_to_next(row):
+            dates = earnings_lookup.get(row['symbol'], [])
+            if not dates:
+                return 90
+            idx = bisect_right(dates, row['date'])
+            if idx >= len(dates):
+                return 90
+            return min((dates[idx] - row['date']).days, 90)
 
-            df['days_to_earnings'] = df.apply(_days_to_next, axis=1)
-            log.info("Added days_to_earnings feature")
+        df['days_to_earnings'] = df.apply(_days_to_next, axis=1)
+        if earnings_lookup:
+            log.info("Added days_to_earnings feature with real earnings dates")
+        else:
+            log.warning("Earnings dates unavailable — days_to_earnings defaulted to 90")
 
         return df
 
